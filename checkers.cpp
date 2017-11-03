@@ -10,6 +10,7 @@
 // #include <string>
 #include <sstream>
 #include "checkers.h"
+#include "time.h"
 
 using namespace std;
 
@@ -165,6 +166,9 @@ void game::loadGame(ifstream &loadStream) {
 }
 
 game::pieceType game::getPiece(int x, int y) {
+    string blackBack = "\x1b[100m";
+    string redBack = "\x1b[41m";
+    string defBack = "\x1b[0m";
     if(x >= 4 || x < 0 || y < 0 || y >= 8) {
         cerr<< "Invalid Coordinates Given."<<endl;
     }
@@ -180,19 +184,54 @@ game::pieceType game::getPiece(int x, int y) {
 }
 
 void game::display() {
-    cout<<"  ================================="<<endl;
+    string blackBack = "\x1b[100m";
+    string redBack = "\x1b[41m";
+    string defBack = "\x1b[0m";
+    string kingColor;
+//    cout<<"  ================================="<<endl;
     for(int i = 0; i < 8; i++) {
         if(i%2 == 0) {
-            cout<< i <<" |   | "<< getPiece(0,i) <<" |   | "<< getPiece(1,i) << " |   | "<< getPiece(2,i) << " |   | "<< getPiece(3,i)<<" |"<<endl;
+            for(int s = 0; s < 3; s++) {
+                cout << i << " ";
+                for (int col = 0; col < 4; col++) {
+                    pieceType p = getPiece(col, i);
+
+                    if(s == 1 && p > 2) kingColor = "\x1b[31;100m";
+                    else kingColor = "";
+
+                    if(p==0){
+                        cout << redBack << "       " << blackBack << "  " << "   " << "  ";
+                        continue;
+                    }
+                    cout << redBack << "       " << blackBack << "  " << p<< kingColor<<p<< "\x1b[0;100m"<<p << "  ";
+                }
+                cout << defBack << endl;
+            }
         }
         else {
-            cout<< i <<" | "<< getPiece(0,i) <<" |   | "<< getPiece(1,i) << " |   | "<< getPiece(2,i) << " |   | "<< getPiece(3,i) << " |   |" << endl;
+            for(int s = 0; s < 3; s++) {
+                cout << i << " ";
+                for (int col = 0; col < 4; col++) {
+                    pieceType p = getPiece(col, i);
+
+                    if(s == 1 && p > 2) kingColor = "\x1b[31;100m";
+                    else kingColor = "";
+
+                    if (p == 0) {
+                        cout << blackBack << "  " << "   " << "  " << redBack << "       ";
+                        continue;
+                    }
+                    cout << blackBack << "  " << p<<kingColor<<p<<"\x1b[0;100m"<<p << "  " << redBack << "       ";
+                }
+                cout << defBack << endl;
+            }
         }
-        cout<<"  ================================="<<endl;
+        cout<<defBack;
 
 //        cout<<"_________________________________"<<endl;
     }
-    cout<<"    a   b   c   d   e   f   g   h  "<<endl;
+    cout<<defBack;
+    cout<<"    aa     bb     cc     dd     ee     ff     gg     hh  "<<endl;
 }
 
 void getInteger(string message, int &ref) {
@@ -278,10 +317,11 @@ void game::findMoves() {
             }
         }
     }
-    if(isCapPresent) this->removeNonCaps();
+    if(isCapPresent) this->removeNonCaps(); // Removes nonCaptures from Legal Moves
 }
 void game::findCaps(int direction, game::square *otherside, game *g, game::move *m) {
     int skip;
+    int numCap = m->numCaps();
     bool isEnd = true;
     skip = -1*direction + 3; // Dont check where you came from.
     pieceType pT = (m->getStart())->contents->type;
@@ -295,9 +335,12 @@ void game::findCaps(int direction, game::square *otherside, game *g, game::move 
         game::pieceType nPT = new_n->contents->type;
         if(g->getWhichPlayersTurn() == 1){
             if(nPT == 2 || nPT == 4) {
+                if(numCap >= 3 && m->isAlreadyCap(new_n)) continue; // If already captured this piece on this turn, it's now blank, so skip.
                 game::square *new_otherSide = (new_n->neighbors[j]);
                 if(new_otherSide == nullptr) continue;
-                if((new_otherSide->contents)->type != 0) {continue;}
+                pieceType new_OSpT = (new_otherSide->contents)->type;
+                if(numCap >= 3 && new_otherSide == m->getStart()) new_OSpT = blank;
+                if(new_OSpT != 0) {continue;}
                 else {
                     isEnd = false;
 //                    m->updateEnd(new_otherSide);
@@ -309,9 +352,12 @@ void game::findCaps(int direction, game::square *otherside, game *g, game::move 
         }
         else { // Player 2's Turn
             if(nPT == 1 || nPT == 3) {
+                if(numCap >= 3 && m->isAlreadyCap(new_n)) continue; // If already captured this piece on this turn, it's now blank, so skip.
                 game::square *new_otherSide = (new_n->neighbors[j]);
                 if(new_otherSide == nullptr) continue;
-                if((new_otherSide->contents)->type != 0) {continue;}
+                pieceType new_OSpT = (new_otherSide->contents)->type;
+                if(numCap >= 3 && new_otherSide == m->getStart()) new_OSpT = blank;
+                if(new_OSpT != 0) {continue;}
                 else {
                     isEnd = false;
 //                    m->updateEnd(new_otherSide);
@@ -397,14 +443,17 @@ void game::Move(game::move *m) {
     }
     auto oldPos = m->getStart();
     auto newPos = m->getEnd();
-    auto tempBlank = m->getEnd()->contents;
-    if(tempBlank->type != 0) cerr<<"ERROR!"<<endl;
-    // Move piece over to blank
-    m->getEnd()->contents = m->getStart()->contents;
-    m->getEnd()->contents->position = newPos;
-    // Move blank piece into old spot
-    m->getStart()->contents = tempBlank;
-    m->getStart()->contents->position = oldPos;
+
+    if(oldPos != newPos){ // Don't need to swap if piece comes back.
+        auto tempBlank = m->getEnd()->contents;
+        if(tempBlank->type != 0) cerr<<"ERROR!"<<endl;
+        // Move piece over to blank
+        m->getEnd()->contents = m->getStart()->contents;
+        m->getEnd()->contents->position = newPos;
+        // Move blank piece into old spot
+        m->getStart()->contents = tempBlank;
+        m->getStart()->contents->position = oldPos;
+    }
 
     // Check for Crowning
     if(isP1 && who == 1 && newPos->row == 0) {
@@ -449,6 +498,11 @@ void game::play() {
     int choice;
     this->DisplayMovesAndChoose(choice);
     this->Move(this->moves[choice]);
+
+    this->findMoves();
+    if(this->IsGameOver()) { // If you walk into a loss. Game should end instead of waiting for it to become your turn again to check.
+        cout << "Walked into a loss. This shouldn't happen."<<endl;
+    }
     this->endTurn();
 
     this->play();
@@ -490,3 +544,46 @@ int main() {
 
     return 0;
 }
+
+//game::move * &searchForMove(game *g) {
+//    static game gTemp = *g;
+//    maxDepth = 2;
+//    time_t t1, t2;
+//    time(&t1);
+//    if(g->getMoves().size() == 1) return (g->getMoves())[0];
+//    alphabeta();
+//    time(&t2);
+//    sec = difftime(t2,t1);
+//    if(sec >= ((double)timLim)/2){
+//        cout<<"Depth reached: "<< maxDepth <<endl;
+//        // break;
+//        //stop deepening.
+//    } else {maxDepth++;}
+//}
+//function alphabeta(node, maxDepth, alpha, beta, isMaxP1) {
+//    if (depth = 0 || node is a terminal node) {
+//        //// return the heuristic value of node
+//    }
+//    int v;
+//    if (isMaxP1) {
+////        v := -∞
+//        for each child of node
+//        v := max(v, alphabeta(child, depth – 1, alpha, beta, false))
+//        alpha := max(alpha, v)
+//        if beta ≤ alpha
+//        break (* β cut-off *)
+//        return v
+//    }
+//    else {
+////        v := +∞
+//        std::numeric_limits<int>::max();
+//        for each child of node
+//        v := min(v, alphabeta(child, depth – 1, alpha, beta, true))
+//        β := min(β, v)
+//        if β ≤ α
+//        break (* α cut-off *)
+//        return v
+//    }
+//
+//}
+//int heuristic()

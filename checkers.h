@@ -99,7 +99,14 @@ public:
         }
 
         string ToString() {
-            string moveText = "Move " + start->ToString() + " to " + end->ToString() + ". Capture = " + std::string(isCapture ? "Yes." : "No.");
+            string moveText = "Move " + start->ToString() + " to " + end->ToString() + ". Capture = " + std::string(isCapture ? "Yes: " : "No.");
+            if(isCapture){
+                for(std::vector<game::square *>::iterator it = this->squaresToCap.begin(); it != this->squaresToCap.end(); ++it){
+                    if(it == this->squaresToCap.begin()) moveText = moveText + (*it)->ToString();
+                    else moveText = moveText + ", " + (*it)->ToString();
+                }
+                moveText = moveText + ".";
+            }
             return moveText;
         }
         game::square *getStart() {
@@ -123,6 +130,16 @@ public:
         std::vector<game::square *> getSqToCap() {
             return this->squaresToCap;
         }
+        int numCaps() {
+            return this->squaresToCap.size();
+        }
+        bool isAlreadyCap(game::square *s) {
+            std::vector<game::square *>::iterator itS = std::find(this->squaresToCap.begin(),this->squaresToCap.end(),s);
+            if(itS != this->squaresToCap.end()) {
+                return true;
+            }
+            return false;
+        }
 
     private:
         game::square *start;
@@ -133,6 +150,9 @@ public:
 
     void Move(game::move *m);
     void findCaps(int direction, game::square *otherside, game *g, game::move *m);
+    vector<move *> getMoves() {
+        return this->moves;
+    }
 
 private:
     game::square board[8][4];
