@@ -3,14 +3,16 @@
  * Professor Sable
  * Project 1: Checkers */
 
-// #include <stdlib.h>
 #include <iostream>
 #include <vector>
 #include <fstream>
-// #include <string>
+#include <string>
 #include <sstream>
 #include "checkers.h"
 #include "time.h"
+#include <ctime>
+#include <algorithm>
+#include <cstdlib>
 
 using namespace std;
 
@@ -60,6 +62,32 @@ game::game(string file, char whoStarts, int timeLim) {
         }
     }
 }
+
+//// Alternate constructor for copying game states
+game::game(game * g) {
+    this->setSquarePositions();
+    this->setNeighbors();
+    this->whosTurn = g->whosTurn;
+    this->timeLimit = g-> timeLimit;
+
+    for(int i = 0; i<8; i++) {
+        for(int j = 0; j <4; j++) {
+            pieceType pT = g->board[i][j].contents->type;
+            square::piece *p = new square::piece();
+            p->type = pT;
+            p->position = &(this->board[i][j]);
+
+            this->board[i][j].contents = p;
+            if(pT == 1 || pT == 3) {
+                this->p1Pieces.push_back(p);
+            }
+            else if (pT == 2 || pT == 4) {
+                this->p2Pieces.push_back(p);
+            }
+        }
+    }
+}
+
 void game::setSquarePositions() {
     for(int row = 0; row < 8; row++) {
         for(int col = 0; col < 4; col++) {
@@ -166,11 +194,12 @@ void game::loadGame(ifstream &loadStream) {
 }
 
 game::pieceType game::getPiece(int x, int y) {
-    string blackBack = "\x1b[100m";
-    string redBack = "\x1b[41m";
+    string blackBack = "\x1b[47;100m"; // Fix
+    string redBack = "\x1b[47;100m"; // Fix
     string defBack = "\x1b[0m";
     if(x >= 4 || x < 0 || y < 0 || y >= 8) {
-        cerr<< "Invalid Coordinates Given."<<endl;
+        cerr<< "ERROR: Invalid Coordinates Given To GetPiece()."<<endl;
+        return blank;
     }
     else {
         square::piece *p = board[y][x].contents;
@@ -187,7 +216,11 @@ void game::display() {
     string blackBack = "\x1b[100m";
     string redBack = "\x1b[41m";
     string defBack = "\x1b[0m";
+    string p1Color = "\x1b[32;42m";
+    string p2Color = "\x1b[34;44m";
     string kingColor;
+    char block = 64;
+    string piece;
 //    cout<<"  ================================="<<endl;
     for(int i = 0; i < 8; i++) {
         if(i%2 == 0) {
@@ -196,14 +229,31 @@ void game::display() {
                 for (int col = 0; col < 4; col++) {
                     pieceType p = getPiece(col, i);
 
-                    if(s == 1 && p > 2) kingColor = "\x1b[31;100m";
+                    if(s == 1 && p > 2) kingColor = "\x1b[30;100m";
                     else kingColor = "";
 
                     if(p==0){
                         cout << redBack << "       " << blackBack << "  " << "   " << "  ";
-                        continue;
+//                        continue;
                     }
-                    cout << redBack << "       " << blackBack << "  " << p<< kingColor<<p<< "\x1b[0;100m"<<p << "  ";
+                    else if(p==1) {
+                        piece = p1Color + block + block+ block;
+                        cout << redBack << "       " << blackBack << "  " << piece << "\x1b[0;100m" << "  ";
+                    }
+                    else if(p==2) {
+                        piece = p2Color + block + block+ block;
+                        cout << redBack << "       " << blackBack << "  " << piece << "\x1b[0;100m" << "  ";
+                    }
+                    else if(p==3) {
+                        piece = p1Color + block;
+                        cout << redBack << "       " << blackBack << "  " << piece << kingColor<<"K" << piece<<"\x1b[0;100m"
+                             << "  ";
+                    }
+                    else {
+                        piece = p2Color + block;
+                        cout << redBack << "       " << blackBack << "  " << piece << kingColor<< "K"<<piece <<"\x1b[0;100m"
+                             << "  ";
+                    }
                 }
                 cout << defBack << endl;
             }
@@ -214,14 +264,29 @@ void game::display() {
                 for (int col = 0; col < 4; col++) {
                     pieceType p = getPiece(col, i);
 
-                    if(s == 1 && p > 2) kingColor = "\x1b[31;100m";
+                    if(s == 1 && p > 2) kingColor = "\x1b[30;100m";
                     else kingColor = "";
 
                     if (p == 0) {
                         cout << blackBack << "  " << "   " << "  " << redBack << "       ";
-                        continue;
+//                        continue;
                     }
-                    cout << blackBack << "  " << p<<kingColor<<p<<"\x1b[0;100m"<<p << "  " << redBack << "       ";
+                    else if(p == 1) {
+                        piece = p1Color + block + block+ block;
+                        cout << blackBack << "  " << piece<<"\x1b[0;100m"<< "  " << redBack << "       ";
+                    }
+                    else if(p == 2) {
+                        piece = p2Color + block + block+ block;
+                        cout << blackBack << "  " << piece<<"\x1b[0;100m"<< "  " << redBack << "       ";
+                    }
+                    else if(p==3){
+                        piece = p1Color + block;
+                        cout << blackBack << "  " << piece<<kingColor<<"K"<<piece<<"\x1b[0;100m"<< "  " << redBack << "       ";
+                    }
+                    else {
+                        piece = p2Color + block;
+                        cout << blackBack << "  " << piece<<kingColor<<"K"<<piece<<"\x1b[0;100m"<< "  " << redBack << "       ";
+                    }
                 }
                 cout << defBack << endl;
             }
@@ -318,6 +383,8 @@ void game::findMoves() {
         }
     }
     if(isCapPresent) this->removeNonCaps(); // Removes nonCaptures from Legal Moves
+    // Mark all Crownings
+
 }
 void game::findCaps(int direction, game::square *otherside, game *g, game::move *m) {
     int skip;
@@ -382,6 +449,21 @@ void game::findCaps(int direction, game::square *otherside, game *g, game::move 
 bool game::IsGameOver() {
     if(this->whosTurn == 1) {
         if(this->p1Pieces.size() == 0 || this->moves.size() == 0){
+//            cout<<"GAME OVER! Player 2 Wins!"<<endl;
+            return true;
+        }
+    }
+    else { //P2 turn
+        if(this->p2Pieces.size() == 0 || this->moves.size() == 0){
+//            cout<<"GAME OVER! Player 1 Wins!"<<endl;
+            return true;
+        }
+    }
+    return false;
+}
+bool game::IsActualGameOver() {
+    if(this->whosTurn == 1) {
+        if(this->p1Pieces.size() == 0 || this->moves.size() == 0){
             cout<<"GAME OVER! Player 2 Wins!"<<endl;
             return true;
         }
@@ -405,7 +487,17 @@ void game::endTurn() {
     }
     this->moves.clear();
     // Update Turn for next player.
-    this->whosTurn = -1*(this->whosTurn) + 1;
+    this->whosTurn = -1*(this->whosTurn) + 3;
+    return;
+}
+void game::actualEndTurn() {
+    // Clear Possible Moves since one was made. Ready for next Move.
+    for(std::vector<move *>::iterator itM= this->moves.begin(); itM != this->moves.end(); ++itM) {
+        delete *itM;
+    }
+    this->moves.clear();
+    // Update Turn for next player.
+    this->whosTurn = -1*(this->whosTurn) + 3;
     cout<<"=================================================================="<<endl;
     return;
 }
@@ -422,8 +514,10 @@ void game::DisplayMovesAndChoose(int &ref) {
         }
         cout<<"Enter your choice: ";
         cin >> ref;
-
-        if (!cin || ref >= this->moves.size() || ref < 0) {
+        if(ref == -1) { //Undo
+            inputGood = true;
+        }
+        else if (!cin || ref >= this->moves.size() || ref < 0) {
             // Non-integer in input buffer, get out of "fail" state
             // Or invalid integer.
             cin.clear();
@@ -458,19 +552,27 @@ void game::Move(game::move *m) {
     // Check for Crowning
     if(isP1 && who == 1 && newPos->row == 0) {
         m->getEnd()->contents->type = p1K;
+        m->markCrown();
     }
     else if(!isP1 && who == 2 && newPos->row == 7) {
         m->getEnd()->contents->type = p2K;
+        m->markCrown();
     }
     // Delete Captured
     if(m->isCap()) {
-        for(std::vector<square *>::iterator it = m->getSqToCap().begin(); it != m->getSqToCap().end(); ++it) {
-            square::piece *p = (*it)->contents;
+        int i = 0;
+        for(auto itC = m->getSqToCap().begin(); itC != m->getSqToCap().end(); ++itC) {
+            if(itC == m->getSqToCap().end() || i >= m->getSqToCap().size()) { // For loop malfunctioning somehow...need extra stop check.
+                cout<<"BreakingLoop========================"<<endl;
+                break;
+            }
+            square::piece *p = (*itC)->contents;
             std::vector<game::square::piece *>::iterator itP;
             if(isP1) { // P1 Turn so delete piece from P2
                 itP = std::find(this->p2Pieces.begin(),this->p2Pieces.end(),p);
                 if(itP != this->p2Pieces.end()) {
                     this->p2Pieces.erase(itP);
+                    m->addCapType(p->type,i);
                 }
                 else{
                     cerr<<"ERROR: Finding the piece from P2 to delete."<<endl;
@@ -480,33 +582,125 @@ void game::Move(game::move *m) {
                 itP = std::find(this->p1Pieces.begin(),this->p1Pieces.end(),p);
                 if(itP != this->p1Pieces.end()) {
                     this->p1Pieces.erase(itP);
+                    m->addCapType(p->type,i);
                 }
                 else {
                     cerr<<"ERROR: Finding the piece from P1 to delete."<<endl;
                 }
             }
-            (*it)->contents->type = blank;
+            (*itC)->contents->type = blank;
+            i++;
         }
     }
+    this->movesTaken.push_back(m);
+}
+void game::undo() {
+    move *m = this->movesTaken.back();
+    auto oldPos = m->getStart();
+    auto newPos = m->getEnd();
 
+    // DeCrown if necessary.
+    if(m->isCrown()) {
+        if(newPos->contents->type == 3) newPos->contents->type = p1;
+        else newPos->contents->type = p2;
+//        m->getEnd()->contents->type -= 2;
+    }
+
+    // Move piece back to original spot.
+    if(oldPos != newPos){ // Don't need to swap if piece stayed.
+        auto tempBlank = oldPos->contents;
+        if(tempBlank->type != 0) cerr<<"ERROR! Original spot not blank."<<endl;
+
+        // Move piece over to blank
+        oldPos->contents = newPos->contents;
+        oldPos->contents->position = oldPos;
+
+        // Move blank piece into old spot
+        newPos->contents = tempBlank;
+        newPos->contents->position = newPos;
+    }
+    // Restore Captured Pieces
+    if(m->isCap()) {
+        int i = 0;
+        for(auto itC = m->getSqToCap().begin(); itC != m->getSqToCap().end(); ++itC) {
+            if(itC == m->getSqToCap().end()) { // For loop malfunctioning somehow...need extra stop check.
+                cout<<"BreakingLoopUndoCap========================"<<endl;
+                break;
+            }
+            // Set Blanks on Board back to Pieces
+            square::piece *p = (*itC)->contents;
+            if(p->type != 0) {
+                cerr<<"ERROR: Restoring pieces to spots that aren't blank."<<endl;
+            }
+            pieceType pT = m->getCapType(i);
+            p->type = pT;
+
+            if(pT == 1 || pT == 3) {
+                this->p1Pieces.push_back(p);
+            }
+            else {
+                this->p2Pieces.push_back(p);
+            }
+            i++;
+        }
+    }
+    // Delete move from existence and pop it from vector.
+    delete m;
+    this->movesTaken.pop_back();
 }
 
-void game::play() {
+void game::play(int mode) {
+    int whoTurn = this->getWhichPlayersTurn();
+    if(whoTurn==1) cout<<"Player 1's Turn (Green)"<<endl;
+    else cout<<"Player 2's Turn (Blue AI)"<<endl;
     this->display();
     this->findMoves();
-    if(this->IsGameOver()) return;
+
+    if(this->IsActualGameOver()) return;
     int choice;
-    this->DisplayMovesAndChoose(choice);
-    this->Move(this->moves[choice]);
-
-    this->findMoves();
-    if(this->IsGameOver()) { // If you walk into a loss. Game should end instead of waiting for it to become your turn again to check.
-        cout << "Walked into a loss. This shouldn't happen."<<endl;
+    if(mode == 1){ // Human vs. AI
+        if(whoTurn == 1) this->DisplayMovesAndChoose(choice);
+        else {
+            this->searchForMove(choice);
+            cout<<"Search chose choice: "<<choice<<endl;
+        }
     }
-    this->endTurn();
+    else{ //mode = 2 AI vs. AI
+        this->searchForMove(choice);
+        cout<<"Search chose choice: "<<choice<<endl;
+    }
 
-    this->play();
-    return;
+    if(choice == -1) { // Undo
+        cout<<"Undo Chosen."<<endl;
+        if(this->movesTaken.size() != 0) {
+            this->undo();
+            this->actualEndTurn();
+        }
+        else {
+            cout<<"Cannot Undo."<<endl;
+            while(choice < 0) {
+                this->DisplayMovesAndChoose(choice);
+            }
+            this->Move(this->moves[choice]);
+
+//            this->findMoves();
+//            if(this->IsGameOver()) { // If you walk into a loss. Game should end instead of waiting for it to become your turn again to check.
+//                cout << "Walked into a loss. This shouldn't happen."<<endl;
+//            }
+            this->actualEndTurn();
+        }
+    }
+    else {
+        this->Move(this->moves[choice]);
+
+        this->findMoves();
+        if(this->IsActualGameOver()) { // If you walk into a loss. Game should end instead of waiting for it to become your turn again to check.
+            cout << "Walked into a loss. This shouldn't happen."<<endl;
+        }
+        this->actualEndTurn();
+    }
+
+    this->play(mode);
 }
 
 int main() {
@@ -539,51 +733,194 @@ int main() {
 
     game theGame(file, whoStarts, timeLimit);
 //    while(!(theGame.IsGameOver())){
-        theGame.play();
+        theGame.play(mode-'0');
 //    }
 
     return 0;
 }
 
-//game::move * &searchForMove(game *g) {
-//    static game gTemp = *g;
-//    maxDepth = 2;
-//    time_t t1, t2;
-//    time(&t1);
-//    if(g->getMoves().size() == 1) return (g->getMoves())[0];
-//    alphabeta();
-//    time(&t2);
-//    sec = difftime(t2,t1);
-//    if(sec >= ((double)timLim)/2){
-//        cout<<"Depth reached: "<< maxDepth <<endl;
-//        // break;
-//        //stop deepening.
-//    } else {maxDepth++;}
-//}
-//function alphabeta(node, maxDepth, alpha, beta, isMaxP1) {
-//    if (depth = 0 || node is a terminal node) {
-//        //// return the heuristic value of node
-//    }
-//    int v;
-//    if (isMaxP1) {
-////        v := -∞
-//        for each child of node
-//        v := max(v, alphabeta(child, depth – 1, alpha, beta, false))
-//        alpha := max(alpha, v)
-//        if beta ≤ alpha
-//        break (* β cut-off *)
-//        return v
+void game::searchForMove(int &choice) {
+    int maxDepth = 10;
+    time_t t1, t2;
+    time(&t1);
+    if(this->getMoves().size() == 1) {
+        choice = 0;
+        time(&t2);
+        double sec = difftime(t2,t1);
+        cout<<"Only one legal move. Time taken to find: "<< sec << " seconds." << endl;
+        return;
+    }
+    //// Iterative Deepening
+    for(int d = 1; d <= maxDepth; d++ ) {
+        cout<<"Searching depth "<<d<<endl;
+        int alpha = std::numeric_limits<int>::min();
+        int beta = std::numeric_limits<int>::max();
+        this->alphabeta(this,d,alpha,beta,choice);
+        time(&t2);
+        double sec = difftime(t2,t1);
+        if(sec >= ((double)this->timeLimit)/2){ /// Halfway out of time //
+            cout<<"Reached Depth: "<< d <<" in Time: "<< sec << " seconds." << endl;
+            break;
+        }
+    }
+}
+
+int game::heuristic(game *g, int depth, int fullDepth) {
+    int h = 0;
+    int p1 = 0, p2 = 0, bonus = 0;
+
+    // Endgame, give diagonal bonus
+    int num1 = g->p1Pieces.size();
+    int num2 = g->p2Pieces.size();
+
+    for(int row = 0; row < 8;row++) {
+        for(int col = 0; col < 4; col++) {
+            /// Endgame diagonal bonus
+            if(( num1 <= 5 || num2 <= 5) &&
+                    ((row==0&&col==0)||((row>0&&row<3)&&(col>=0&&col<2))||
+                            ((row>2&&row<5)&&(col>=1&&col<3))||
+                            ((row>4&&row<7)&&(col>=2&&col<4))||
+                            (row==7&&col==3))
+                    ){
+                bonus = 500;
+            }
+
+            pieceType pT = g->board[row][col].contents->type;
+            if(pT == 1) {
+                if(row < 4) p1 += 100; // Value progressed pawns
+                p1 += 1000 + bonus;
+            }
+            if(pT == 2) {
+                if(row > 3) p2 +=100;
+                p2 += 1000 + bonus;
+            }
+            if(pT == 3) p1 += 1500 + bonus;
+            if(pT == 4) p2 += 1500 + bonus;
+        }
+    }
+    h += (p1-p2);
+
+    // Reward Wins
+    if(g->IsGameOver()) {
+        if(g->getWhichPlayersTurn() == 1){ //Player 2 Won
+            h -= 10000*(depth);
+        }
+        else {
+            h += 10000*(depth);
+        }
+    }
+//    if(g->getWhichPlayersTurn() == 1) {
+//        return (p2-p1);
 //    }
 //    else {
-////        v := +∞
-//        std::numeric_limits<int>::max();
-//        for each child of node
-//        v := min(v, alphabeta(child, depth – 1, alpha, beta, true))
-//        β := min(β, v)
-//        if β ≤ α
-//        break (* α cut-off *)
-//        return v
+        return h;
 //    }
-//
-//}
-//int heuristic()
+}
+
+void game::alphabeta(game *g, int depth, int alpha, int beta, int &choice) {
+    game node(g);
+    bool isMaxP1;
+    if(node.getWhichPlayersTurn() == 1) {
+        isMaxP1 = true;
+    }
+    else {
+        isMaxP1 = false;
+    }
+    node.findMoves();
+
+    if (depth == 0 || node.IsGameOver()) {
+        // No search or Game is Over. Just stop.
+        return;
+    }
+    int v;
+    std::vector<int> multChoices;
+    if (isMaxP1) {
+        v = std::numeric_limits<int>::min();
+        for(int i = 0; i < node.getMoves().size(); i++) {/// each child of node
+            game child(&node);
+            child.findMoves();
+            child.Move(child.getMoves()[i]);
+            child.endTurn();
+            int newV = alphabeta(depth, &child, (depth-1), alpha, beta);
+            if(newV > v) {
+                choice = i;
+                multChoices.clear();
+                multChoices.push_back(i);
+            }
+            else if(newV == v) multChoices.push_back(i);
+            v = std::max(v, newV);
+            alpha = std::max(alpha, v);
+            if (beta <= alpha) break; // (* beta cut-off *)
+        }
+    }
+    else {
+        v = std::numeric_limits<int>::max();
+        for(int i = 0; i < node.getMoves().size(); i++) { /// each child of node
+            game child(&node);
+            child.findMoves();
+            child.Move(child.getMoves()[i]);
+            child.endTurn();
+            int newV = alphabeta(depth, &child, (depth - 1), alpha, beta);
+            if (newV < v) {
+                choice = i;
+                multChoices.clear();
+                multChoices.push_back(i);
+            }
+            else if(newV == v) multChoices.push_back(i);
+            v = std::min(v, newV);
+            beta = std::min(beta, v);
+            if (beta <= alpha) break; //(* alpha cut-off *)
+        }
+    }
+    int size = multChoices.size();
+    if(size > 1) {
+        srand ( time(NULL) );
+        choice = multChoices[rand()%size];
+    }
+}
+int game::alphabeta(int fullDepth, game *thisChild, int depth, int alpha, int beta) {
+    bool isMaxP1;
+    if(thisChild->getWhichPlayersTurn() == 1) {
+        isMaxP1 = true;
+    }
+    else {
+        isMaxP1 = false;
+    }
+//    game node(g);
+    if (depth == 0 || thisChild->IsGameOver()) {
+        //// return the heuristic value of node
+        return heuristic(thisChild, depth, fullDepth);
+    }
+    int v;
+    if (isMaxP1) {
+        v = std::numeric_limits<int>::min();
+        for(int i = 0; i < thisChild->getMoves().size(); i++) {/// each child of node
+            game child(thisChild);
+            child.findMoves();
+            child.Move(child.getMoves()[i]);
+            child.endTurn();
+            int newV = alphabeta(fullDepth, &child, (depth-1), alpha, beta);
+//            if(newV > v) choice = i;
+            v = std::max(v, newV);
+            alpha = std::max(alpha, v);
+            if (beta <= alpha) break; // (* beta cut-off *)
+        }
+        return v;
+    }
+    else {
+        v = std::numeric_limits<int>::max();
+        for(int i = 0; i < thisChild->getMoves().size(); i++) { /// each child of node
+            game child(thisChild);
+            child.findMoves();
+            child.Move(child.getMoves()[i]);
+            child.endTurn();
+            int newV = alphabeta(fullDepth, &child, (depth - 1), alpha, beta);
+//            if (newV < v) choice = i;
+            v = std::min(v, newV);
+            beta = std::min(beta, v);
+            if (beta <= alpha) break; //(* alpha cut-off *)
+        }
+        return v;
+    }
+
+}

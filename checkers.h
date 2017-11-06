@@ -16,16 +16,19 @@ class game {
 
 public:
     game(std::string file, char whoStarts = '1', int timeLim = 5);
+    game(game *g);
     void setSquarePositions();
     void setNeighbors();
     void loadGame(ifstream &loadStream);
     void display();
     int getWhichPlayersTurn();
     void endTurn();
+    void actualEndTurn();
     void DisplayMovesAndChoose(int &ref);
 
-    void play();
+    void play(int mode);
     bool IsGameOver();
+    bool IsActualGameOver();
 
     void findMoves();
 
@@ -38,6 +41,12 @@ public:
             }
         }
     }
+//    void markCrowns() {
+//        for(std::vector<move *>::iterator it = this->moves.begin(); it != this->moves.end(); ++it) {
+//            pieceType pT = (*it)->getStart()->contents->type;
+//            if(pT == 1){}
+//        }
+//    }
 
     enum pieceType {
         blank, p1, p2, p1K, p2K
@@ -87,6 +96,7 @@ public:
             this->end = e;
             this->start = s;
             this->isCapture = isCap;
+            this->isCrowning = false;
             if(isCap == true) {
                 this->squaresToCap.push_back(Cap);
             }
@@ -95,6 +105,7 @@ public:
             this->start = m->start;
             this->end = m->end;
             this->isCapture = m->isCapture;
+            this->isCrowning = m->isCrowning;
             this->squaresToCap = m->squaresToCap;
         }
 
@@ -140,25 +151,46 @@ public:
             }
             return false;
         }
+        bool isCrown() {
+            return this->isCrowning;
+        }
+        void markCrown() {
+            this->isCrowning = true;
+        }
+        void addCapType(pieceType p, int i) {
+            this->capTypes[i]=p;
+        }
+        pieceType getCapType(int i) {
+            return this->capTypes[i];
+        }
 
     private:
         game::square *start;
         game::square *end;
         bool isCapture;
+        bool isCrowning;
         std::vector<game::square *>squaresToCap;
+        pieceType capTypes[12];
     };
 
+    //// Public Game Methods
     void Move(game::move *m);
     void findCaps(int direction, game::square *otherside, game *g, game::move *m);
     vector<move *> getMoves() {
         return this->moves;
     }
+    void undo();
+    void searchForMove(int &choice);
+    int heuristic(game *g, int depth, int fullDepth);
+    void alphabeta(game *node, int depth, int alpha, int beta, int &choice);
+    int alphabeta(int fullDepth, game *node, int depth, int alpha, int beta);
 
 private:
     game::square board[8][4];
     std::vector<square::piece *> p1Pieces;
     std::vector<square::piece *> p2Pieces;
     std::vector<move *> moves;
+    std::vector<move *> movesTaken;
 
     int whosTurn;
     int timeLimit;
