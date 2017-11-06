@@ -563,7 +563,7 @@ void game::Move(game::move *m) {
         int i = 0;
         for(auto itC = m->getSqToCap().begin(); itC != m->getSqToCap().end(); ++itC) {
             if(itC == m->getSqToCap().end() || i >= m->getSqToCap().size()) { // For loop malfunctioning somehow...need extra stop check.
-                cout<<"BreakingLoop========================"<<endl;
+//                cout<<"BreakingLoop========================"<<endl;
                 break;
             }
             square::piece *p = (*itC)->contents;
@@ -675,6 +675,8 @@ void game::play(int mode) {
         if(this->movesTaken.size() != 0) {
             this->undo();
             this->actualEndTurn();
+            this->undo();
+            this->actualEndTurn();
         }
         else {
             cout<<"Cannot Undo."<<endl;
@@ -740,7 +742,9 @@ int main() {
 }
 
 void game::searchForMove(int &choice) {
-    int maxDepth = 10;
+    int maxDepth = 30;
+    int dep;
+    double sec;
     time_t t1, t2;
     time(&t1);
     if(this->getMoves().size() == 1) {
@@ -752,17 +756,19 @@ void game::searchForMove(int &choice) {
     }
     //// Iterative Deepening
     for(int d = 1; d <= maxDepth; d++ ) {
-        cout<<"Searching depth "<<d<<endl;
+//        cout<<"Searching depth "<<d<<endl;
         int alpha = std::numeric_limits<int>::min();
         int beta = std::numeric_limits<int>::max();
         this->alphabeta(this,d,alpha,beta,choice);
+        dep = d;
         time(&t2);
-        double sec = difftime(t2,t1);
+        sec = difftime(t2,t1);
+//        cout<<"Time: "<<sec<<endl;
         if(sec >= ((double)this->timeLimit)/2){ /// Halfway out of time //
-            cout<<"Reached Depth: "<< d <<" in Time: "<< sec << " seconds." << endl;
             break;
         }
     }
+    cout<<"Reached Depth: "<< dep <<" in Time: "<< sec << " seconds." << endl;
 }
 
 int game::heuristic(game *g, int depth, int fullDepth) {
@@ -772,6 +778,7 @@ int game::heuristic(game *g, int depth, int fullDepth) {
     // Endgame, give diagonal bonus
     int num1 = g->p1Pieces.size();
     int num2 = g->p2Pieces.size();
+    int total = num1 + num2;
 
     for(int row = 0; row < 8;row++) {
         for(int col = 0; col < 4; col++) {
@@ -783,6 +790,10 @@ int game::heuristic(game *g, int depth, int fullDepth) {
                             (row==7&&col==3))
                     ){
                 bonus = 500;
+            }
+            /// Endgame center bonus
+            if(( num1 <= 4 || num2 <= 4) && ((row>=3&&row<=5)&&(col==1||col==2))){
+                bonus += 500;
             }
 
             pieceType pT = g->board[row][col].contents->type;
@@ -798,6 +809,15 @@ int game::heuristic(game *g, int depth, int fullDepth) {
             if(pT == 4) p2 += 1500 + bonus;
         }
     }
+    // If Ahead, Force Trades
+//    if(num1>num2){
+//        p1 += num1*100.0/num2;
+//        p2 -= num1*100.0/num2;
+//    }
+//    else {
+//        p2 += num1*100/num2;
+//        p1 -= num1*100/num2;
+//    }
     h += (p1-p2);
 
     // Reward Wins
@@ -809,12 +829,29 @@ int game::heuristic(game *g, int depth, int fullDepth) {
             h += 10000*(depth);
         }
     }
-//    if(g->getWhichPlayersTurn() == 1) {
-//        return (p2-p1);
-//    }
-//    else {
-        return h;
-//    }
+
+    // Need to reduce distance in Endgame.
+    if(num1<=4 || num2 <=4) {
+        int totalDist = 0;
+        int r =1, c=1;
+        for(auto itP1 = g->p1Pieces.begin(); itP1 != g->p1Pieces.end(); ++itP1) {
+            for (auto itP2 = g->p2Pieces.begin(); itP2 != g->p2Pieces.end(); ++itP2) {
+                r = abs((*itP1)->position->row - (*itP2)->position->row);
+                c = abs((*itP1)->position->column - (*itP2)->position->column);
+                totalDist += (r+c);
+            }
+        }
+        if(num1>num2){
+            h += (10000.0/totalDist);
+            cout<<totalDist<<endl;
+        }
+        else{
+            h -= (10000.0/totalDist);
+            cout<<totalDist<<endl;
+        }
+    }
+
+    return h;
 }
 
 void game::alphabeta(game *g, int depth, int alpha, int beta, int &choice) {
@@ -842,6 +879,8 @@ void game::alphabeta(game *g, int depth, int alpha, int beta, int &choice) {
             child.Move(child.getMoves()[i]);
             child.endTurn();
             int newV = alphabeta(depth, &child, (depth-1), alpha, beta);
+
+//            cout<<"D0"<<" "<<newV<<endl;
             if(newV > v) {
                 choice = i;
                 multChoices.clear();
@@ -861,6 +900,8 @@ void game::alphabeta(game *g, int depth, int alpha, int beta, int &choice) {
             child.Move(child.getMoves()[i]);
             child.endTurn();
             int newV = alphabeta(depth, &child, (depth - 1), alpha, beta);
+
+//            cout<<"D0"<<" "<<newV<<endl;
             if (newV < v) {
                 choice = i;
                 multChoices.clear();
@@ -886,7 +927,8 @@ int game::alphabeta(int fullDepth, game *thisChild, int depth, int alpha, int be
     else {
         isMaxP1 = false;
     }
-//    game node(g);
+    thisChild->findMoves();
+
     if (depth == 0 || thisChild->IsGameOver()) {
         //// return the heuristic value of node
         return heuristic(thisChild, depth, fullDepth);
@@ -900,7 +942,8 @@ int game::alphabeta(int fullDepth, game *thisChild, int depth, int alpha, int be
             child.Move(child.getMoves()[i]);
             child.endTurn();
             int newV = alphabeta(fullDepth, &child, (depth-1), alpha, beta);
-//            if(newV > v) choice = i;
+//            for(int z = 0;z< fullDepth-depth;z++){cout<<"____|";}
+//            cout<<"D"<<fullDepth-depth<<" "<<newV<<endl;
             v = std::max(v, newV);
             alpha = std::max(alpha, v);
             if (beta <= alpha) break; // (* beta cut-off *)
@@ -915,7 +958,8 @@ int game::alphabeta(int fullDepth, game *thisChild, int depth, int alpha, int be
             child.Move(child.getMoves()[i]);
             child.endTurn();
             int newV = alphabeta(fullDepth, &child, (depth - 1), alpha, beta);
-//            if (newV < v) choice = i;
+//            for(int z = 0;z< fullDepth-depth;z++){cout<<"____|";}
+//            cout<<"D"<<fullDepth-depth<<" "<<newV<<endl;
             v = std::min(v, newV);
             beta = std::min(beta, v);
             if (beta <= alpha) break; //(* alpha cut-off *)
