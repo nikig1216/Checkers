@@ -78,13 +78,24 @@ game::game(game * g) {
             p->position = &(this->board[i][j]);
 
             this->board[i][j].contents = p;
-            if(pT == 1 || pT == 3) {
-                this->p1Pieces.push_back(p);
-            }
-            else if (pT == 2 || pT == 4) {
-                this->p2Pieces.push_back(p);
-            }
+//            if(pT == 1 || pT == 3) {
+//                this->p1Pieces.push_back(p);
+//            }
+//            else if (pT == 2 || pT == 4) {
+//                this->p2Pieces.push_back(p);
+//            }
         }
+    }
+    int r, c;
+    for(auto itP1 = g->p1Pieces.begin(); itP1 != g->p1Pieces.end(); ++itP1) {
+        r = (*itP1)->position->row;
+        c = (*itP1)->position->column;
+        this->p1Pieces.push_back(this->board[r][c].contents);
+    }
+    for(auto itP2 = g->p2Pieces.begin(); itP2 != g->p2Pieces.end(); ++itP2) {
+        r = (*itP2)->position->row;
+        c = (*itP2)->position->column;
+        this->p2Pieces.push_back(this->board[r][c].contents);
     }
 }
 
@@ -663,11 +674,13 @@ void game::play(int mode) {
         else {
             this->searchForMove(choice);
             cout<<"Search chose choice: "<<choice<<endl;
+            cout<<"Move("<<choice<<"): "<<this->getMoves()[choice]->getStart()->ToString()<<" to "<<this->getMoves()[choice]->getEnd()->ToString()<< endl;
         }
     }
     else{ //mode = 2 AI vs. AI
         this->searchForMove(choice);
         cout<<"Search chose choice: "<<choice<<endl;
+        cout<<"Move("<<choice<<"): "<<this->getMoves()[choice]->getStart()->ToString()<<" to "<<this->getMoves()[choice]->getEnd()->ToString()<< endl;
     }
 
     if(choice == -1) { // Undo
@@ -711,10 +724,14 @@ int main() {
     char newOrLoad, mode, whoStarts;
     int timeLimit;
     string file;
+
     while(newOrLoad != '1' && newOrLoad != '2') {
         cout<<"1) New Game OR 2) Load Game from TextFile"<<endl;
         cin>>newOrLoad;
+        cin.clear();
+        while (cin.get() != '\n');
     }
+
     if(newOrLoad == '2') {
         cout<<"Please enter in the text file to load from: ";
         cin>>file;
@@ -725,12 +742,16 @@ int main() {
         while(whoStarts != '1' && whoStarts != '2') {
             cout << "Please select which player moves first: 1) Player 1 OR 2) Player 2" << endl;
             cin >> whoStarts;
+            cin.clear();
+            while (cin.get() != '\n');
         }
         getInteger("Please enter an integer value for the AI's time limit in seconds: ", timeLimit);
     }
     while(mode != '1' && mode != '2') {
         cout << "Please choose a mode number: 1) Play AI OR 2) Observe AI vs. AI" << endl;
         cin >> mode;
+        cin.clear();
+        while (cin.get() != '\n');
     }
 
     game theGame(file, whoStarts, timeLimit);
@@ -756,7 +777,7 @@ void game::searchForMove(int &choice) {
     }
     //// Iterative Deepening
     for(int d = 1; d <= maxDepth; d++ ) {
-//        cout<<"Searching depth "<<d<<endl;
+        cout<<"Searching depth "<<d<<endl;
         int alpha = std::numeric_limits<int>::min();
         int beta = std::numeric_limits<int>::max();
         this->alphabeta(this,d,alpha,beta,choice);
@@ -773,7 +794,7 @@ void game::searchForMove(int &choice) {
 
 int game::heuristic(game *g, int depth, int fullDepth) {
     int h = 0;
-    int p1 = 0, p2 = 0, bonus = 0;
+    int p1 = 0, p2 = 0;
 
     // Endgame, give diagonal bonus
     int num1 = g->p1Pieces.size();
@@ -782,6 +803,7 @@ int game::heuristic(game *g, int depth, int fullDepth) {
 
     for(int row = 0; row < 8;row++) {
         for(int col = 0; col < 4; col++) {
+            int bonus = 0;
             /// Endgame diagonal bonus
             if(( num1 <= 5 || num2 <= 5) &&
                     ((row==0&&col==0)||((row>0&&row<3)&&(col>=0&&col<2))||
@@ -794,6 +816,11 @@ int game::heuristic(game *g, int depth, int fullDepth) {
             /// Endgame center bonus
             if(( num1 <= 4 || num2 <= 4) && ((row>=3&&row<=5)&&(col==1||col==2))){
                 bonus += 500;
+            }
+
+            /// Endgame double corner bonus
+            if( (num1 <= 2 || num2 <= 2) && ((row<=1&&col==0)||(row>=6||col==3)) ) {
+                bonus += 1000;
             }
 
             pieceType pT = g->board[row][col].contents->type;
@@ -809,48 +836,66 @@ int game::heuristic(game *g, int depth, int fullDepth) {
             if(pT == 4) p2 += 1500 + bonus;
         }
     }
+    if( num1 <= 4 || num2 <= 4) {
+        if (num1 <= 2 || num2 <= 2){
+            p1 *= 15;
+            p2 *= 15;
+        }
+        else {
+            p1 *= 5;
+            p2 *= 5;
+        }
+    }
     // If Ahead, Force Trades
-//    if(num1>num2){
-//        p1 += num1*100.0/num2;
-//        p2 -= num1*100.0/num2;
-//    }
-//    else {
-//        p2 += num1*100/num2;
-//        p1 -= num1*100/num2;
-//    }
+    if(num1 > num2 && num2 != 0){
+        p1 += num1*100.0/num2;
+        p2 -= num1*100.0/num2;
+    }
+    else if(num2 > num1 && num2 != 0){
+        p2 += num1*100.0/num2;
+        p1 -= num1*100.0/num2;
+    }
+
     h += (p1-p2);
 
     // Reward Wins
     if(g->IsGameOver()) {
         if(g->getWhichPlayersTurn() == 1){ //Player 2 Won
-            h -= 10000*(depth);
+            h -= 10000000*(depth+1);
         }
         else {
-            h += 10000*(depth);
+            h += 10000000*(depth+1);
         }
     }
 
     // Need to reduce distance in Endgame.
-    if(num1<=4 || num2 <=4) {
+    if((num1<=4 || num2 <=4) && (num1 > 0 && num2 > 0)) {
         int totalDist = 0;
-        int r =1, c=1;
+        int r, c;
+        int c1, c2;
         for(auto itP1 = g->p1Pieces.begin(); itP1 != g->p1Pieces.end(); ++itP1) {
             for (auto itP2 = g->p2Pieces.begin(); itP2 != g->p2Pieces.end(); ++itP2) {
+                /// Find Row Distance
                 r = abs((*itP1)->position->row - (*itP2)->position->row);
-                c = abs((*itP1)->position->column - (*itP2)->position->column);
-                totalDist += (r+c);
+
+                /// Assign Column Values, and find Column Distance
+                if((*itP1)->position->row%2 == 0) c1 = 2*((*itP1)->position->column)+1;
+                else c1 = 2*((*itP1)->position->column);
+                if((*itP2)->position->row%2 == 0) c2 = 2*((*itP2)->position->column)+1;
+                else c2 = 2*((*itP2)->position->column);
+                c = abs(c1 - c2);
+                totalDist += (r+c); /// Manhattan Distance added to total distance.
             }
         }
         if(num1>num2){
-            h += (10000.0/totalDist);
-            cout<<totalDist<<endl;
+//            h += (5000.0/totalDist);
+            h -= 5001*totalDist*(depth+1);
         }
-        else{
-            h -= (10000.0/totalDist);
-            cout<<totalDist<<endl;
+        else if (num2>num1){
+//            h -= (5000.0/totalDist);
+            h += 5001*totalDist*(depth+1);
         }
     }
-
     return h;
 }
 
@@ -864,6 +909,7 @@ void game::alphabeta(game *g, int depth, int alpha, int beta, int &choice) {
         isMaxP1 = false;
     }
     node.findMoves();
+//    cout<<"Number of moves at D(1): "<<node.getMoves().size()<<endl;
 
     if (depth == 0 || node.IsGameOver()) {
         // No search or Game is Over. Just stop.
@@ -877,10 +923,17 @@ void game::alphabeta(game *g, int depth, int alpha, int beta, int &choice) {
             game child(&node);
             child.findMoves();
             child.Move(child.getMoves()[i]);
+
+            /// Debug
+            cout<<"Mov("<<i<<"): "<<child.getMoves()[i]->getStart()->ToString()<<" to "<<child.getMoves()[i]->getEnd()->ToString()<< endl;
+            ///
+
             child.endTurn();
             int newV = alphabeta(depth, &child, (depth-1), alpha, beta);
 
-//            cout<<"D0"<<" "<<newV<<endl;
+            /// Debug
+            cout<<"D1"<<" "<<newV<<endl;
+
             if(newV > v) {
                 choice = i;
                 multChoices.clear();
@@ -889,7 +942,7 @@ void game::alphabeta(game *g, int depth, int alpha, int beta, int &choice) {
             else if(newV == v) multChoices.push_back(i);
             v = std::max(v, newV);
             alpha = std::max(alpha, v);
-            if (beta <= alpha) break; // (* beta cut-off *)
+            if (beta < alpha) break; // (* beta cut-off *)
         }
     }
     else {
@@ -898,10 +951,18 @@ void game::alphabeta(game *g, int depth, int alpha, int beta, int &choice) {
             game child(&node);
             child.findMoves();
             child.Move(child.getMoves()[i]);
+
+            /// Debug
+            cout<<"Mov("<<i<<"): "<<child.getMoves()[i]->getStart()->ToString()<<" to "<<child.getMoves()[i]->getEnd()->ToString()<< endl;
+            ///
+
             child.endTurn();
             int newV = alphabeta(depth, &child, (depth - 1), alpha, beta);
 
-//            cout<<"D0"<<" "<<newV<<endl;
+            /// Debug
+            cout<<"D1"<<" "<<newV<<endl;
+            ///
+
             if (newV < v) {
                 choice = i;
                 multChoices.clear();
@@ -910,7 +971,7 @@ void game::alphabeta(game *g, int depth, int alpha, int beta, int &choice) {
             else if(newV == v) multChoices.push_back(i);
             v = std::min(v, newV);
             beta = std::min(beta, v);
-            if (beta <= alpha) break; //(* alpha cut-off *)
+            if (beta < alpha) break; //(* alpha cut-off *)
         }
     }
     int size = multChoices.size();
@@ -928,6 +989,11 @@ int game::alphabeta(int fullDepth, game *thisChild, int depth, int alpha, int be
         isMaxP1 = false;
     }
     thisChild->findMoves();
+    /// Debug
+//    if(depth != 0) {
+//        for(int z = 0;z< fullDepth-depth;z++){cout<<"____|";}
+//        cout<<"Number of moves at D("<<fullDepth-depth+1<<"): "<<thisChild->getMoves().size()<<endl;
+//    }
 
     if (depth == 0 || thisChild->IsGameOver()) {
         //// return the heuristic value of node
@@ -940,10 +1006,19 @@ int game::alphabeta(int fullDepth, game *thisChild, int depth, int alpha, int be
             game child(thisChild);
             child.findMoves();
             child.Move(child.getMoves()[i]);
+
+            /// Debug
+//            for(int z = 0;z< fullDepth-depth;z++){cout<<"____|";}
+//            cout<<"Mov("<<i<<"): "<<child.getMoves()[i]->getStart()->ToString()<<" to "<<child.getMoves()[i]->getEnd()->ToString()<< endl;
+            ///
+
             child.endTurn();
             int newV = alphabeta(fullDepth, &child, (depth-1), alpha, beta);
+
+            //// Debug
 //            for(int z = 0;z< fullDepth-depth;z++){cout<<"____|";}
-//            cout<<"D"<<fullDepth-depth<<" "<<newV<<endl;
+//            cout<<"D"<<fullDepth-depth+1<<" "<<newV<<endl;
+            ///
             v = std::max(v, newV);
             alpha = std::max(alpha, v);
             if (beta <= alpha) break; // (* beta cut-off *)
@@ -956,10 +1031,20 @@ int game::alphabeta(int fullDepth, game *thisChild, int depth, int alpha, int be
             game child(thisChild);
             child.findMoves();
             child.Move(child.getMoves()[i]);
+
+            /// Debug
+//            for(int z = 0;z< fullDepth-depth;z++){cout<<"____|";}
+//            cout<<"Mov("<<i<<"): "<<child.getMoves()[i]->getStart()->ToString()<<" to "<<child.getMoves()[i]->getEnd()->ToString()<< endl;
+            ///
+
             child.endTurn();
             int newV = alphabeta(fullDepth, &child, (depth - 1), alpha, beta);
+
+            /// Debug
 //            for(int z = 0;z< fullDepth-depth;z++){cout<<"____|";}
-//            cout<<"D"<<fullDepth-depth<<" "<<newV<<endl;
+//            cout<<"D"<<fullDepth-depth+1<<" "<<newV<<endl;
+            ///
+
             v = std::min(v, newV);
             beta = std::min(beta, v);
             if (beta <= alpha) break; //(* alpha cut-off *)
